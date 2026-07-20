@@ -1,0 +1,4 @@
+__include__: ['./_base_axial.yml']
+
+output_dir: ./output/ablation/01_s0_axial_sanity
+epoches: 120
