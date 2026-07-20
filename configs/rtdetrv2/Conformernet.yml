@@ -1,0 +1,174 @@
+__include__: [
+  '../dataset/coco_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/Conformer.yml'
+]
+
+output_dir: ./output/rtdetrv2_conformernet_cnnconf_router_300e
+
+
+# =====================================================
+# Model
+# =====================================================
+
+task: detection
+
+model: RTDETR
+criterion: RTDETRCriterionv2
+postprocessor: RTDETRPostProcessor
+
+use_focal_loss: True
+eval_spatial_size: [128, 256]
+
+
+RTDETR:
+  backbone: ConformerNetBackbone
+  encoder: HybridEncoder
+  decoder: RTDETRTransformerv2
+
+
+# =====================================================
+# Backbone
+#  - Stage1: CNN-only
+#  - Stage2/Stage3: CNN + AxialConformer
+#  - shared/specific disentanglement only in S2/S3
+#  - frequency/time pyramid only in S2/S3
+# =====================================================
+
+ConformerNetBackbone:
+  in_chans: 3
+
+  # core dims
+  d_model: 256
+  depth: 12
+  stage_depths: [2, 5, 5]
+
+  num_heads: 8
+  ff_mult: 4
+  conv_kernel: 31
+  dropout: 0.1
+  attn_dropout: 0.1
+
+  # CNN block
+  cnn_expansion: 2
+
+  # patch embedding (2D TF)
+  patch_f: 8
+  patch_t: 7
+  stride_f: 4
+  stride_t: 2   # 适度压缩时间维，降低计算量
+
+  # shared / specific router
+  use_depth_router: True
+  router_stages: [1, 2]   # only S2 / S3
+  num_levels: 4
+  router_hidden: 256
+  temperature: 1.0
+  topk: 0
+
+  # dynamic branch mixing
+  branch_router_hidden: 256
+  branch_mix_temperature: 1.0
+  branch_min_weight: 0.001
+
+  # frequency pyramid
+  use_freq_pyramid: True
+  freq_pyramid_stages: [1, 2]
+  freq_scales: 3
+  freq_down_stride: 2
+
+  # temporal pyramid
+  use_time_pyramid: True
+  time_pyramid_stages: [1, 2]
+  time_scales: 2
+  time_down_stride: 2
+
+
+# =====================================================
+# Encoder
+#  - keep lighter, because backbone is already strong
+#  - feat_strides here are written in scalar form only
+#    for compatibility with current RT-DETR code
+# =====================================================
+
+HybridEncoder:
+  in_channels: [256, 256, 256]
+  feat_strides: [[4, 2], [8, 2], [16, 2]]
+
+  hidden_dim: 256
+  use_encoder_idx: [2]
+  num_encoder_layers: 1
+  nhead: 8
+  dim_feedforward: 1024
+  dropout: 0.
+  enc_act: 'gelu'
+
+  expansion: 0.5
+  depth_mult: 0.5
+  act: 'silu'
+
+
+# =====================================================
+# Decoder
+# =====================================================
+
+RTDETRTransformerv2:
+  feat_channels: [256, 256, 256]
+  feat_strides: [[4, 2], [8, 2], [16, 2]]
+  hidden_dim: 256
+  num_levels: 3
+
+  num_layers: 6
+  num_queries: 100
+
+  num_denoising: 50
+  label_noise_ratio: 0.5
+  box_noise_scale: 1.0
+
+  eval_idx: -1
+
+  num_points: [4, 4, 4]
+  cross_attn_method: default
+  query_select_method: default
+
+
+# =====================================================
+# Training
+# =====================================================
+
+epoches: 300
+
+
+optimizer:
+  type: AdamW
+
+  params:
+    -
+      params: '^(?=.*backbone)(?!.*norm|bn).*$'
+      lr: 0.00003
+    -
+      params: '^(?=.*backbone)(?=.*norm|bn).*$'
+      lr: 0.00003
+      weight_decay: 0.
+    -
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$'
+      weight_decay: 0.
+
+  lr: 0.0001
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+
+
+# =====================================================
+# Data Loader
+# =====================================================
+
+train_dataloader:
+  dataset:
+    transforms:
+      policy:
+        epoch: 117
+  collate_fn:
+    stop_epoch: 117

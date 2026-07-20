@@ -1,0 +1,119 @@
+__include__: [
+  '../dataset/coco_detection.yml',
+  './runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/rtdetrv2_r50vd.yml',
+]
+
+output_dir: ./output/ablation/atst_base
+
+model: RTDETR
+criterion: RTDETRCriterionv2
+postprocessor: RTDETRPostProcessor
+
+RTDETR:
+  backbone: ATSTBackbone2D
+  encoder: HybridEncoder
+  decoder: RTDETRTransformerv2
+  encoder_return_aux: False
+  encoder_compute_rank_loss_in_eval: False
+  encoder_return_attn_maps: False
+
+ATSTBackbone2D:
+  pretrained: False
+  arch: auto
+  in_chans: 1
+  hidden_dim: 256
+  layers: [3, 7, 11]
+  out_strides: [1, 2, 4]
+  patch_h: 64
+  patch_w: 4
+  spec_h: 64
+  spec_w: 1001
+  mlp_ratio: 4.0
+  drop_rate: 0.0
+  attn_drop_rate: 0.0
+  drop_path_rate: 0.1
+  pos_type: interp
+  resize_height: 64
+  min_freq_bins: 8
+  act: relu
+  freeze_at: -1
+  freeze_norm: True
+  channel_reduction: mean
+
+HybridEncoder:
+  in_channels: [256, 256, 256]
+  hidden_dim: 256
+  expansion: 0.5
+  use_encoder_idx: [2]
+
+RTDETRTransformerv2:
+  num_layers: 4
+
+RTDETRCriterionv2:
+  matcher: HungarianMatcher
+  alpha: 0.75
+  gamma: 2.0
+
+  rank_regularizer_mode: adaptive
+  rank_level_index: 2
+  rank_r_tau: 4
+  rank_r_nu: 4
+  rank_r_loc: 2
+  rank_window_h: 1
+  rank_window_w: 3
+  rank_num_anchors: 32
+  rank_return_maps: False
+
+  adaptive_ema_beta: 0.95
+  adaptive_warmup_epochs: 5.0
+  adaptive_gate_gamma: 5.0
+  adaptive_eps: 1.0e-6
+  adaptive_stop_gradient: True
+
+  losses: ['vfl', 'boxes']
+
+  weight_dict:
+    loss_vfl: 1.0
+    loss_bbox: 5.0
+    loss_giou: 2.0
+
+HungarianMatcher:
+  weight_dict:
+    cost_class: 2
+    cost_bbox: 5
+    cost_giou: 2
+  alpha: 0.25
+  gamma: 2.0
+
+epoches: 300
+
+optimizer:
+  type: AdamW
+  params:
+    -
+      params: '^(?=.*backbone)(?!.*(?:norm|bn|bias)).*$'
+      lr: 0.00005
+    -
+      params: '^(?=.*backbone)(?=.*(?:norm|bn|bias)).*$'
+      lr: 0.00005
+      weight_decay: 0.
+    -
+      params: '^(?=.*(?:encoder|decoder))(?!.*backbone)(?!.*(?:norm|bn|bias)).*$'
+    -
+      params: '^(?=.*(?:encoder|decoder))(?!.*backbone)(?=.*(?:norm|bn|bias)).*$'
+      weight_decay: 0.
+
+  lr: 0.0001
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+
+train_dataloader:
+  dataset:
+    transforms:
+      policy:
+        epoch: 117
+  collate_fn:
+    stop_epoch: 117

@@ -1,0 +1,139 @@
+task: detection
+
+model: RTDETR
+criterion: RTDETRCriterionv2
+postprocessor: RTDETRPostProcessor
+
+use_focal_loss: True
+eval_spatial_size: [128, 256]  # h w
+
+
+RTDETR:
+  backbone: ConformerNetBackbone
+  encoder: HybridEncoder
+  decoder: RTDETRTransformerv2
+
+
+# ======================================================
+# Backbone (ConformerNet)
+#  - input: (B,1,F=128,T)
+#  - output: 3-level feats list: [(B,256,H,W), (B,256,H/2,W), (B,256,H/4,W)]
+#    time W unchanged, only frequency H downsampled
+# ======================================================
+
+ConformerNetBackbone:
+  in_chans: 1
+
+  # core dims (match encoder hidden_dim to avoid extra projections)
+  d_model: 256
+  depth: 12
+  num_heads: 8
+  ff_mult: 4
+  conv_kernel: 31
+  dropout: 0.1
+  attn_dropout: 0.1
+
+  # patch embedding (2D TF)
+  patch_f: 8
+  patch_t: 7
+  stride_f: 4
+  stride_t: 1   # keep time resolution
+
+  # optional depth fusion
+  use_depth_router: True
+  num_levels: 4
+  router_hidden: 256
+  temperature: 1.0
+  topk: 0
+
+  # in-resolution multi-frequency fusion (optional)
+  use_freq_pyramid: True
+  freq_scales: 3
+  freq_down_stride: 2
+
+  # important-band router (side outputs only; feats to encoder remain 3-level list)
+  use_freq_router: True
+  freq_router_hidden: 256
+  freq_temperature: 1.0
+  freq_topk: 0
+
+
+# ======================================================
+# Hybrid Encoder
+# ======================================================
+
+HybridEncoder:
+  # backbone returns 3 levels, each channel = 256
+  in_channels: [256, 256, 256]
+  feat_strides: [8, 16, 32]
+
+  # intra
+  hidden_dim: 256
+  use_encoder_idx: [2]
+  num_encoder_layers: 1
+  nhead: 8
+  dim_feedforward: 1024
+  dropout: 0.
+  enc_act: 'gelu'
+
+  # cross
+  expansion: 1.0
+  depth_mult: 1
+  act: 'silu'
+
+
+# ======================================================
+# Decoder
+# ======================================================
+
+RTDETRTransformerv2:
+  feat_channels: [256, 256, 256]
+  feat_strides: [8, 16, 32]
+  hidden_dim: 256
+  num_levels: 3
+
+  num_layers: 6
+  num_queries: 100
+
+  num_denoising: 50
+  label_noise_ratio: 0.5
+  box_noise_scale: 1.0
+
+  eval_idx: -1
+
+  num_points: [4, 4, 4]
+  cross_attn_method: default
+  query_select_method: default
+
+
+# ======================================================
+# Post Processor
+# ======================================================
+
+RTDETRPostProcessor:
+  num_top_queries: 300
+
+
+# ======================================================
+# Criterion
+# ======================================================
+
+RTDETRCriterionv2:
+  weight_dict:
+    loss_vfl: 1
+    loss_bbox: 5
+    loss_giou: 2
+
+  losses: ['vfl', 'boxes']
+
+  alpha: 0.75
+  gamma: 2.0
+
+  matcher:
+    type: HungarianMatcher
+    weight_dict:
+      cost_class: 2
+      cost_bbox: 5
+      cost_giou: 2
+    alpha: 0.25
+    gamma: 2.0

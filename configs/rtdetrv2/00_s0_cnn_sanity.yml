@@ -1,0 +1,4 @@
+__include__: ['./_base_cnn.yml']
+
+output_dir: ./output/ablation/00_s0_cnn_sanity
+epoches: 5

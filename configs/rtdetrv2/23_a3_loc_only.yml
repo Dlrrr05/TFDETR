@@ -1,0 +1,15 @@
+﻿__include__: ['./_base_axial.yml']
+
+output_dir: ./output/ablation/23_a3_loc_only
+RTDETR:
+  encoder_return_aux: True
+
+RTDETRCriterionv2:
+  rank_regularizer_mode: three_level
+  losses: ['vfl', 'boxes', 'loc']
+  weight_dict:
+    loss_vfl: 1.0
+    loss_bbox: 5.0
+    loss_giou: 2.0
+    loss_loc: 0.05
+

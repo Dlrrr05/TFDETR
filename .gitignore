@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+venv/
+env/
+.venv/
+
+# Datasets
+dataset/
+datasets/
+dataset_512_plus_full_y/
+data/
+*.mat
+*.h5
+*.hdf5
+
+# Training outputs
+outputs/
+output/
+logs/
+runs/
+wandb/
+tensorboard/
+checkpoints/
+checkpoint/
+results/
+
+# Model weights
+*.pth
+*.pt
+*.ckpt
+*.bin
+*.safetensors
+*.onnx
+
+# Generated prediction files
+predictions/
+*.npy
+*.npz
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+.DS_Store

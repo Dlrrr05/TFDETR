@@ -1,0 +1,3 @@
+__include__: ['./_base_axial.yml']
+
+output_dir: ./output/ablation/20_a0_no_lowrank
