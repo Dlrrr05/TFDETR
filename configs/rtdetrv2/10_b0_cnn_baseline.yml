@@ -1,3 +1,0 @@
-__include__: ['./_base_cnn.yml']
-
-output_dir: ./output/ablation/10_b0_cnn_baseline
